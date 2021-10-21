@@ -590,7 +590,7 @@ class ReadFromText(PTransform):
         skipped from each source file. Must be 0 or higher. Large number of
         skipped lines might impact performance.
       coder (~apache_beam.coders.coders.Coder): Coder used to decode each line.
-      delimiter Optional(bytes): delimiter to split records
+      delimiter (bytes): delimiter to split records
     """
 
     super().__init__(**kwargs)
