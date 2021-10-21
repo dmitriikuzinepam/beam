@@ -100,7 +100,7 @@ class _TextSource(filebasedsource.FileBasedSource):
                validate=True,
                skip_header_lines=0,
                header_processor_fns=(None, None),
-               delimiter=b'\n'):
+               delimiter=None):
     """Initialize a _TextSource
 
     Args:
@@ -245,7 +245,9 @@ class _TextSource(filebasedsource.FileBasedSource):
 
     current_pos = read_buffer.position
 
-    delimiter_len = len(self._delimiter)
+    # b'\n' use as default
+    delimiter = self._delimiter or b'\n'
+    delimiter_len = len(delimiter)
 
     while True:
       if current_pos >= len(read_buffer.data):
@@ -257,16 +259,36 @@ class _TextSource(filebasedsource.FileBasedSource):
 
       # Using find() here is more efficient than a linear scan
       # of the byte array.
-      next_lf = read_buffer.data.find(self._delimiter, current_pos)
+      next_lf = read_buffer.data.find(delimiter, current_pos)
 
       if next_lf >= 0:
-        if self._delimiter == b'\n' and read_buffer.data[next_lf -
-                                                         1:next_lf] == b'\r':
+        if self._delimiter is None and delimiter == b'\n' \
+                and read_buffer.data[next_lf - 1:next_lf] == b'\r':
+          # Default delimiter
           # Found a '\r\n'. Accepting that as the next separator.
           return (next_lf - 1, next_lf + 1)
         else:
+          # User defined delimiter
           # Found a delimiter. Accepting that as the next separator.
           return (next_lf, next_lf + delimiter_len)
+
+      elif read_buffer.data.find(delimiter[0], current_pos) >= 0:
+        # Corner case: delimiter truncated at the end of the file
+        current_delimiter_pos = read_buffer.data.find(delimiter[0], current_pos)
+
+        i = 0
+        while i < len(delimiter) and read_buffer.data[current_delimiter_pos +
+                                                      i] == delimiter[i]:
+          i += 1
+          if not self._try_to_ensure_num_bytes_in_buffer(
+              file_to_read, read_buffer, current_delimiter_pos + i + 1):
+            break
+
+        if i == delimiter_len:
+          # All bytes of delimiter found
+          return current_delimiter_pos, current_delimiter_pos + delimiter_len
+
+        current_pos += i
 
       current_pos = len(read_buffer.data)
 
@@ -544,7 +566,7 @@ class ReadFromText(PTransform):
       coder=coders.StrUtf8Coder(),  # type: coders.Coder
       validate=True,
       skip_header_lines=0,
-      delimiter=b'\n',
+      delimiter=None,
       **kwargs):
     """Initialize the :class:`ReadFromText` transform.
 
@@ -568,7 +590,7 @@ class ReadFromText(PTransform):
         skipped from each source file. Must be 0 or higher. Large number of
         skipped lines might impact performance.
       coder (~apache_beam.coders.coders.Coder): Coder used to decode each line.
-      delimiter (bytes): delimiter to split records
+      delimiter Optional(bytes): delimiter to split records
     """
 
     super().__init__(**kwargs)

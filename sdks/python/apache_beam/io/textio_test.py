@@ -69,7 +69,8 @@ def write_data(
     directory=None,
     prefix=tempfile.template,
     eol=EOL.LF,
-    custom_delimiter=None):
+    custom_delimiter=None,
+    line_value=b'line'):
   """Writes test data to a temporary file.
 
   Args:
@@ -81,7 +82,8 @@ def write_data(
     eol (int): The line ending to use when writing.
       :class:`~apache_beam.io.textio_test.EOL` exposes attributes that can be
       used here to define the eol.
-    custom_delimiter (str or bytes): The custom delimiter.
+    custom_delimiter (bytes): The custom delimiter.
+    line_value (bytes): Default value for test data, default b'line'
 
   Returns:
     Tuple[str, List[str]]: A tuple of the filename and a list of the
@@ -92,7 +94,7 @@ def write_data(
                                    prefix=prefix) as f:
     sep_values = [b'\n', b'\r\n']
     for i in range(num_lines):
-      data = b'' if no_data else b'line' + str(i).encode()
+      data = b'' if no_data else line_value + str(i).encode()
       all_data.append(data)
 
       if eol == EOL.LF:
@@ -1050,6 +1052,76 @@ class TextSourceTest(unittest.TestCase):
       read_data = list(source.read(range_tracker))
 
       self.assertEqual(read_data, expected_data)
+
+  def test_read_with_customer_delimiter_truncated(self):
+    """
+    Corner case: delimiter truncated at the end of the file
+    Use delimiter with length = 3, buffer_size = 6
+    and line_value with length = 4
+    to split the delimiter
+    """
+    delimiter = b'@$*'
+
+    file_name, expected_data = write_data(
+      10,
+      eol=EOL.CUSTOM_DELIMITER,
+      line_value=b'a' * 4,
+      custom_delimiter=delimiter)
+
+    assert len(expected_data) == 10
+    source = TextSource(
+        file_pattern=file_name,
+        min_bundle_size=0,
+        buffer_size=6,
+        compression_type=CompressionTypes.UNCOMPRESSED,
+        strip_trailing_newlines=True,
+        coder=coders.StrUtf8Coder(),
+        delimiter=delimiter,
+    )
+    range_tracker = source.get_range_tracker(None, None)
+    read_data = list(source.read(range_tracker))
+
+    self.assertEqual(read_data, expected_data)
+
+  def test_read_with_customer_delimiter_truncated_and_not_equal(self):
+    """
+    Corner case: delimiter truncated at the end of the file
+    and only part of delimiter equal end of buffer
+
+    Use delimiter with length = 3, buffer_size = 6
+    and line_value with length = 4
+    to split the delimiter
+    """
+
+    write_delimiter = b'@$'
+    read_delimiter = b'@$*'
+
+    file_name, expected_data = write_data(
+      10,
+      eol=EOL.CUSTOM_DELIMITER,
+      line_value=b'a' * 4,
+      custom_delimiter=write_delimiter)
+
+    # In this case check, that the line won't be splitted
+    write_delimiter_encode = write_delimiter.decode('utf-8')
+    expected_data_str = [
+        write_delimiter_encode.join(expected_data) + write_delimiter_encode
+    ]
+
+    source = TextSource(
+        file_pattern=file_name,
+        min_bundle_size=0,
+        buffer_size=6,
+        compression_type=CompressionTypes.UNCOMPRESSED,
+        strip_trailing_newlines=True,
+        coder=coders.StrUtf8Coder(),
+        delimiter=read_delimiter,
+    )
+    range_tracker = source.get_range_tracker(None, None)
+
+    read_data = list(source.read(range_tracker))
+
+    self.assertEqual(read_data, expected_data_str)
 
 
 class TextSinkTest(unittest.TestCase):
