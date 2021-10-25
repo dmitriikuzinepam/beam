@@ -172,7 +172,12 @@ class _TextSource(filebasedsource.FileBasedSource):
         # belongs to the current bundle, hence ignoring that is incorrect.
         # Seeking to one byte before prevents that.
 
-        file_to_read.seek(start_offset - 1)
+        if self._delimiter is not None and start_offset >= len(self._delimiter):
+          required_position = start_offset - len(self._delimiter)
+        else:
+          required_position = start_offset - 1
+
+        file_to_read.seek(required_position)
         read_buffer.reset()
         sep_bounds = self._find_separator_bounds(file_to_read, read_buffer)
         if not sep_bounds:
@@ -239,7 +244,7 @@ class _TextSource(filebasedsource.FileBasedSource):
     # Determines the start and end positions within 'read_buffer.data' of the
     # next separator starting from position 'read_buffer.position'.
     # Use the custom delimiter to be used in place of
-    # the default ones ('\r', '\n' or '\r\n')'
+    # the default ones ('\n' or '\r\n')'
     # This method may increase the size of buffer but it will not decrease the
     # size of it.
 
@@ -250,7 +255,7 @@ class _TextSource(filebasedsource.FileBasedSource):
     delimiter_len = len(delimiter)
 
     while True:
-      if current_pos >= len(read_buffer.data):
+      if current_pos >= len(read_buffer.data) - delimiter_len + 1:
         # Ensuring that there are enough bytes to determine
         # at current_pos.
         if not self._try_to_ensure_num_bytes_in_buffer(
@@ -262,9 +267,9 @@ class _TextSource(filebasedsource.FileBasedSource):
       next_lf = read_buffer.data.find(delimiter, current_pos)
 
       if next_lf >= 0:
-        if self._delimiter is None and delimiter == b'\n' \
+        if self._delimiter is None \
                 and read_buffer.data[next_lf - 1:next_lf] == b'\r':
-          # Default delimiter
+          # Default b'\n' or user defined delimiter
           # Found a '\r\n'. Accepting that as the next separator.
           return (next_lf - 1, next_lf + 1)
         else:
@@ -272,23 +277,17 @@ class _TextSource(filebasedsource.FileBasedSource):
           # Found a delimiter. Accepting that as the next separator.
           return (next_lf, next_lf + delimiter_len)
 
-      elif read_buffer.data.find(delimiter[0], current_pos) >= 0:
-        # Corner case: delimiter truncated at the end of the file
-        current_delimiter_pos = read_buffer.data.find(delimiter[0], current_pos)
-
-        i = 0
-        while i < len(delimiter) and read_buffer.data[current_delimiter_pos +
-                                                      i] == delimiter[i]:
-          i += 1
-          if not self._try_to_ensure_num_bytes_in_buffer(
-              file_to_read, read_buffer, current_delimiter_pos + i + 1):
-            break
-
-        if i == delimiter_len:
-          # All bytes of delimiter found
-          return current_delimiter_pos, current_delimiter_pos + delimiter_len
-
-        current_pos += i
+      elif self._delimiter is not None:
+        # Corner case: custom delimiter is truncated at the end of the buffer.
+        next_lf = read_buffer.data.find(
+            delimiter[0], len(read_buffer.data) - delimiter_len + 1)
+        if next_lf >= 0:
+          # The first possible start of a truncated delimiter,
+          # but delimiters longer than 2 bytes may be truncated further.
+          # Delegating full matching to the next iteration to avoid
+          # additional loop here.
+          current_pos = next_lf
+          continue
 
       current_pos = len(read_buffer.data)
 
