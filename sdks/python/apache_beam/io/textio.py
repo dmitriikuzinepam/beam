@@ -175,10 +175,10 @@ class _TextSource(filebasedsource.FileBasedSource):
           self._process_header(file_to_read, read_buffer))
       start_offset = max(start_offset, position_after_processing_header_lines)
       if start_offset > position_after_processing_header_lines:
-        # Seeking to one position before the start index and ignoring the
-        # current line. If start_position is at beginning if the line, that line
-        # belongs to the current bundle, hence ignoring that is incorrect.
-        # Seeking to one byte before prevents that.
+        # Seeking to one delimiter length before the start index and ignoring
+        # the current line. If start_position is at beginning if the line, that
+        # line belongs to the current bundle, hence ignoring that is incorrect.
+        # Seeking to one delimiter before prevents that.
 
         if self._delimiter is not None and start_offset >= len(self._delimiter):
           required_position = start_offset - len(self._delimiter)
@@ -189,13 +189,13 @@ class _TextSource(filebasedsource.FileBasedSource):
         read_buffer.reset()
         sep_bounds = self._find_separator_bounds(file_to_read, read_buffer)
         if not sep_bounds:
-          # Could not find a separator after (start_offset - 1). This means that
+          # Could not find a separator after required_position. This means that
           # none of the records within the file belongs to the current source.
           return
 
         _, sep_end = sep_bounds
         read_buffer.data = read_buffer.data[sep_end:]
-        next_record_start_position = start_offset - 1 + sep_end
+        next_record_start_position = required_position + sep_end
       else:
         next_record_start_position = position_after_processing_header_lines
 

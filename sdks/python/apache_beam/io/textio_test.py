@@ -1025,6 +1025,14 @@ class TextSourceTest(unittest.TestCase):
     self.assertEqual(expected_data[2:], reference_lines)
     self.assertEqual(reference_lines, split_lines)
 
+  def test_custom_delimiter_read_from_text(self):
+    file_name, expected_data = write_data(
+      5, eol=EOL.CUSTOM_DELIMITER, custom_delimiter=b'@#')
+    assert len(expected_data) == 5
+    with TestPipeline() as pipeline:
+      pcoll = pipeline | 'Read' >> ReadFromText(file_name, delimiter=b'@#')
+      assert_that(pcoll, equal_to(expected_data))
+
   def test_custom_delimiter_must_not_empty_bytes(self):
     file_name, _ = write_data(1)
     for delimiter in (b'', '', '\r\n', 'a', 1):
@@ -1097,6 +1105,31 @@ class TextSourceTest(unittest.TestCase):
       read_data = list(source.read(range_tracker))
 
       self.assertEqual(read_data, expected_data)
+
+  def test_read_with_custom_delimiter_around_split_point(self):
+    for delimiter in (b'\n', b'\r\n', b'@#', b'abc'):
+      file_name, expected_data = write_data(
+        20,
+        eol=EOL.CUSTOM_DELIMITER,
+        custom_delimiter=delimiter)
+      assert len(expected_data) == 20
+      for desired_bundle_size in (4, 5, 6, 7):
+        source = TextSource(
+            file_name,
+            0,
+            CompressionTypes.UNCOMPRESSED,
+            True,
+            coders.StrUtf8Coder(),
+            delimiter=delimiter)
+        splits = list(source.split(desired_bundle_size=desired_bundle_size))
+
+        reference_source_info = (source, None, None)
+        sources_info = ([
+            (split.source, split.start_position, split.stop_position)
+            for split in splits
+        ])
+        source_test_utils.assert_sources_equal_reference_source(
+            reference_source_info, sources_info)
 
   def test_read_with_customer_delimiter_truncated(self):
     """
