@@ -1033,6 +1033,15 @@ class TextSourceTest(unittest.TestCase):
       pcoll = pipeline | 'Read' >> ReadFromText(file_name, delimiter=b'@#')
       assert_that(pcoll, equal_to(expected_data))
 
+  def test_custom_delimiter_read_all_single_file(self):
+    file_name, expected_data = write_data(
+      5, eol=EOL.CUSTOM_DELIMITER, custom_delimiter=b'@#')
+    assert len(expected_data) == 5
+    with TestPipeline() as pipeline:
+      pcoll = pipeline | 'Create' >> Create(
+          [file_name]) | 'ReadAll' >> ReadAllFromText(delimiter=b'@#')
+      assert_that(pcoll, equal_to(expected_data))
+
   def test_custom_delimiter_must_not_empty_bytes(self):
     file_name, _ = write_data(1)
     for delimiter in (b'', '', '\r\n', 'a', 1):

@@ -471,7 +471,8 @@ def _create_text_source(
     compression_type=None,
     strip_trailing_newlines=None,
     coder=None,
-    skip_header_lines=None):
+    skip_header_lines=None,
+    delimiter=None):
   return _TextSource(
       file_pattern=file_pattern,
       min_bundle_size=min_bundle_size,
@@ -479,7 +480,8 @@ def _create_text_source(
       strip_trailing_newlines=strip_trailing_newlines,
       coder=coder,
       validate=False,
-      skip_header_lines=skip_header_lines)
+      skip_header_lines=skip_header_lines,
+      delimiter=delimiter)
 
 
 class ReadAllFromText(PTransform):
@@ -510,6 +512,7 @@ class ReadAllFromText(PTransform):
       coder=coders.StrUtf8Coder(),  # type: coders.Coder
       skip_header_lines=0,
       with_filename=False,
+      delimiter=None,
       **kwargs):
     """Initialize the ``ReadAllFromText`` transform.
 
@@ -534,6 +537,9 @@ class ReadAllFromText(PTransform):
       with_filename: If True, returns a Key Value with the key being the file
         name and the value being the actual data. If False, it only returns
         the data.
+      delimiter (bytes) Optional: delimiter to split records.
+        Must not self-overlap, because self-overlapping delimiters cause
+        ambiguous parsing at the edge of bundles.
     """
     super().__init__(**kwargs)
     source_from_file = partial(
@@ -542,7 +548,8 @@ class ReadAllFromText(PTransform):
         compression_type=compression_type,
         strip_trailing_newlines=strip_trailing_newlines,
         coder=coder,
-        skip_header_lines=skip_header_lines)
+        skip_header_lines=skip_header_lines,
+        delimiter=delimiter)
     self._desired_bundle_size = desired_bundle_size
     self._min_bundle_size = min_bundle_size
     self._compression_type = compression_type
