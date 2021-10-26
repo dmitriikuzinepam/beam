@@ -113,6 +113,9 @@ class _TextSource(filebasedsource.FileBasedSource):
         `header_matcher` are both provided, the value of `skip_header_lines`
         lines will be skipped and the header will be processed from
         there.
+      delimiter (bytes) Optional: delimiter to split records.
+        Must not self-overlap, because self-overlapping delimiters cause
+        ambiguous parsing at the edge of bundles.
     Raises:
       ValueError: if skip_lines is negative.
 
@@ -138,6 +141,11 @@ class _TextSource(filebasedsource.FileBasedSource):
           'lines might significantly slow down processing.')
     self._skip_header_lines = skip_header_lines
     self._header_matcher, self._header_processor = header_processor_fns
+    if delimiter is not None:
+      if not isinstance(delimiter, bytes) or len(delimiter) == 0:
+        raise ValueError('Delimiter must be a non-empty bytes sequence.')
+      if self._is_self_overlapping(delimiter):
+        raise ValueError('Delimiter must not self-overlap.')
     self._delimiter = delimiter
 
   def display_data(self):
@@ -349,6 +357,15 @@ class _TextSource(filebasedsource.FileBasedSource):
       return (
           read_buffer.data[record_start_position_in_buffer:sep_bounds[1]],
           sep_bounds[1] - record_start_position_in_buffer)
+
+  @staticmethod
+  def _is_self_overlapping(delimiter):
+    # delimiter self-overlaps if v exists such as delimiter = vu = wv
+    # with u and w non-empty
+    for i in range(1, len(delimiter)):
+      if delimiter[0:i] == delimiter[len(delimiter) - i:]:
+        return True
+    return False
 
 
 class _TextSourceWithFilename(_TextSource):
@@ -589,7 +606,9 @@ class ReadFromText(PTransform):
         skipped from each source file. Must be 0 or higher. Large number of
         skipped lines might impact performance.
       coder (~apache_beam.coders.coders.Coder): Coder used to decode each line.
-      delimiter (bytes): delimiter to split records
+      delimiter (bytes) Optional: delimiter to split records.
+        Must not self-overlap, because self-overlapping delimiters cause
+        ambiguous parsing at the edge of bundles.
     """
 
     super().__init__(**kwargs)

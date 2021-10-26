@@ -1025,13 +1025,58 @@ class TextSourceTest(unittest.TestCase):
     self.assertEqual(expected_data[2:], reference_lines)
     self.assertEqual(reference_lines, split_lines)
 
+  def test_custom_delimiter_must_not_empty_bytes(self):
+    file_name, _ = write_data(1)
+    for delimiter in (b'', '', '\r\n', 'a', 1):
+      with self.assertRaises(
+          ValueError, msg='Delimiter must be a non-empty bytes sequence.'):
+        _ = TextSource(
+            file_pattern=file_name,
+            min_bundle_size=0,
+            buffer_size=6,
+            compression_type=CompressionTypes.UNCOMPRESSED,
+            strip_trailing_newlines=True,
+            coder=coders.StrUtf8Coder(),
+            delimiter=delimiter,
+        )
+
+  def test_custom_delimiter_must_not_self_overlap_ok(self):
+    """Non self-overlapping delimiter is accepted."""
+    file_name, _ = write_data(1)
+    for delimiter in (b'\n', b'\r\n', b'*', b'abc', b'cabdab', b'abcabd'):
+      _ = TextSource(
+          file_pattern=file_name,
+          min_bundle_size=0,
+          buffer_size=6,
+          compression_type=CompressionTypes.UNCOMPRESSED,
+          strip_trailing_newlines=True,
+          coder=coders.StrUtf8Coder(),
+          delimiter=delimiter,
+      )
+
+  def test_custom_delimiter_must_not_self_overlap_error(self):
+    """Self-overlapping delimiter is rejected."""
+    file_name, _ = write_data(1)
+    for delimiter in (b'||', b'***', b'aba', b'abcab'):
+      with self.assertRaises(ValueError,
+                             msg='Delimiter must not self-overlap.'):
+        _ = TextSource(
+            file_pattern=file_name,
+            min_bundle_size=0,
+            buffer_size=6,
+            compression_type=CompressionTypes.UNCOMPRESSED,
+            strip_trailing_newlines=True,
+            coder=coders.StrUtf8Coder(),
+            delimiter=delimiter,
+        )
+
   def test_read_with_customer_delimiter(self):
     delimiters = [
         b'\n',
         b'\r\n',
         b'*|',
         b'*',
-        b'***',
+        b'*=-',
     ]
 
     for delimiter in delimiters:
