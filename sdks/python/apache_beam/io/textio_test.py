@@ -1085,10 +1085,7 @@ class TextSourceTest(unittest.TestCase):
 
   def test_read_with_customer_delimiter_over_buffer_size(self):
     """
-    Corner case: delimiter truncated at the end of the file
-    Use delimiter with length = 3, buffer_size = 6
-    and line_value with length = 4
-    to split the delimiter
+    Corner case: delimiter is on border of size of buffer
     """
     READ_BUFFER_SIZE = 10
     delimiter = b'\r\n'
