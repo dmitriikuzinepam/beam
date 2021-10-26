@@ -1083,6 +1083,38 @@ class TextSourceTest(unittest.TestCase):
 
     self.assertEqual(read_data, expected_data)
 
+  def test_read_with_customer_delimiter_over_buffer_size(self):
+    """
+    Corner case: delimiter truncated at the end of the file
+    Use delimiter with length = 3, buffer_size = 6
+    and line_value with length = 4
+    to split the delimiter
+    """
+    READ_BUFFER_SIZE = 10
+    delimiter = b'\r\n'
+
+    with tempfile.NamedTemporaryFile("wb") as temp_file:
+      expected_data = []
+      for i in range(2, 5):
+        temp_file.write(b'\r' + b'a' * (READ_BUFFER_SIZE - i) + delimiter)
+        expected_data.append(
+            (b'\r' + b'a' * (READ_BUFFER_SIZE - i)).decode('utf-8'))
+      temp_file.flush()
+
+      source = TextSource(
+          file_pattern=temp_file.name,
+          min_bundle_size=0,
+          buffer_size=READ_BUFFER_SIZE,
+          compression_type=CompressionTypes.UNCOMPRESSED,
+          strip_trailing_newlines=True,
+          coder=coders.StrUtf8Coder(),
+          delimiter=delimiter,
+      )
+      range_tracker = source.get_range_tracker(None, None)
+      read_data = list(source.read(range_tracker))
+
+      self.assertEqual(read_data, expected_data)
+
   def test_read_with_customer_delimiter_truncated_and_not_equal(self):
     """
     Corner case: delimiter truncated at the end of the file

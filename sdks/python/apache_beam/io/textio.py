@@ -269,8 +269,8 @@ class _TextSource(filebasedsource.FileBasedSource):
       if next_lf >= 0:
         if self._delimiter is None \
                 and read_buffer.data[next_lf - 1:next_lf] == b'\r':
-          # Default b'\n' or user defined delimiter
-          # Found a '\r\n'. Accepting that as the next separator.
+          # Found a '\r\n' if delimiter is not define.
+          # Accepting that as the next separator.
           return (next_lf - 1, next_lf + 1)
         else:
           # User defined delimiter
