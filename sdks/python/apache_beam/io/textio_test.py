@@ -1093,12 +1093,13 @@ class TextSourceTest(unittest.TestCase):
     READ_BUFFER_SIZE = 10
     delimiter = b'\r\n'
 
-    with tempfile.NamedTemporaryFile() as temp_file:
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
       expected_data = []
       for i in range(2, 5):
         temp_file.write(b'\r' + b'a' * (READ_BUFFER_SIZE - i) + delimiter)
         expected_data.append(
             (b'\r' + b'a' * (READ_BUFFER_SIZE - i)).decode('utf-8'))
+      temp_file.flush()
 
     source = TextSource(
         file_pattern=temp_file.name,
